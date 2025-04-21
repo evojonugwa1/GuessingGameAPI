@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Room</title>
+    <script src="/socket.io/socket.io.js"></script>
+  </head>
+  <body>
+    <h1>Game Room</h1>
+    <h3>Session ID: <%= sessionId %></h3>
+    <h3>Game Master: <%= gameMaster %></h3>  <!--This displays the game master-->
+    <ul id="playersList"></ul>
+
+    <button onclick="startGame()">Start Game </button>
+
+    <div id="gameArea" style="display: none;">
+        <h2 id="question">Question: </h2>
+        <input type="text" id="guessInput" placeholder="Enter your guess">
+        <button onclick="submitGuess()">Submit</button>
+    </div>
+
+    <script>
+      const socket = io();
+      const sessionId = "<%= sessionId %>";
+
+      window.onload = () => {
+        // This is to comfirm if player or user is already existing
+
+        let sessionId = sessionStorage.getItem("sessionId");
+        let username = sessionStorage.getItem("username");
+
+        // If no username is seen here, prompt the user to input it.
+        if (!username) {
+          username = prompt("Enter your username:");
+          if (!username) {
+            alert("Please enter your username");
+            window.location.href = "/"; // This redirects it back to the home page which is the index page if no username.
+            return;
+          }
+          sessionStorage.setItem("username", username); // This saves username
+        }
+
+        if (!sessionId) {
+          alert("Error: No session ID found. ");
+          window.location.href = "/";
+          return;
+        }
+
+        console.log("Emiting joinGame event with:", {sessionId, username})
+
+
+
+        // This emits the game event session
+
+        setTimeout(() => {
+          socket.emit("joinGame", { sessionId, username });
+        }, 1000); // Wait 1 second before checking
+
+        //To Hanlde the users/players update list.
+
+        socket.on("updatePlayers", (players) => {
+          console.log("Updated players list:", players);
+          
+          const playersList = document.getElementById("playersList");
+          playersList.innerHTML = ""; // This clears the users/players list.
+          players.forEach((player) => {
+            playersList.innerHTML += `<li>${player.username} (Score: ${player.score})</li>`;
+          });
+        });
+
+        // Game Joined
+
+        socket.on("gameJoined", ({sessionId}) => {
+          console.log("Joined game successfully:", sessionId);
+          document.getElementById("gameArea").style.display = "block";  // This shows the game area.
+        })
+
+
+        socket.on("error", (data) => {
+          console.error("Error:", data.message);
+          alert(data.message);
+          // window.location.href = "/"; // This redirects it back to the home page which is the index page if is wrong guess.
+        });
+      };
+
+        // This handles start game and displays questions
+
+        socket.on("gameStarted", (data) => {
+          document.getElementById(
+            "question"
+          ).innerText = `Question: ${data.question}`;
+          document.getElementById("gameArea").style.display = "block";
+        });
+
+        // This Handles wrong guess
+
+        socket.on("wrongGuess", ({remainingAttempts}) => {
+          alert(`Wrong guess, Attempts remaining : ${data.remaining}`);
+        });
+
+        // Handle out of attempts
+
+        socket.on("outOfAttempts", (data) => {
+          alert(data.message);
+        });
+
+        // This handle the End of Game
+        socket.on("gameEnded", (data) => {
+          alert(`${data.message} The answer was: ${data.answer}`);
+          document.getElementById("gameArea").style.display = "none";
+        });
+
+
+      function startGame() {
+        socket.emit("startGame", { sessionId });
+      }
+
+      function submitGuess() {
+        const guess = document.getElementById("guessInput").value;
+        if (!guess.trim()) return;
+
+        socket.emit("submitGuess", {
+          sessionId,
+          username: sessionStorage.getItem("username"),
+          guess,
+        });
+
+        document.getElementById("guessInput").value = "";
+      }
+
+    </script>
+  </body>
+</html>
